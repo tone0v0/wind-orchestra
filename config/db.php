@@ -25,14 +25,13 @@ function get_db_connection() {
 
         // クラウドDB（TiDB Cloud等）用のSSL暗号化通信設定
         if (DB_HOST !== '127.0.0.1' && DB_HOST !== 'localhost') {
-            // Linux (RenderのDockerコンテナ) のシステムCA証明書を明示的に指定
-            $ca_path = '/etc/ssl/certs/ca-certificates.crt';
-            if (file_exists($ca_path)) {
-                $options[PDO::MYSQL_ATTR_SSL_CA] = $ca_path;
-            } else {
+            $pem_file = __DIR__ . '/cacert.pem';
+            if (file_exists($pem_file)) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = $pem_file;
+            } elseif (file_exists('/etc/ssl/certs/ca-certificates.crt')) {
                 $options[PDO::MYSQL_ATTR_SSL_CA] = '/etc/ssl/certs/ca-certificates.crt';
             }
-            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = true;
         }
 
         try {
