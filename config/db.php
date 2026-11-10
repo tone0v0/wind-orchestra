@@ -1,8 +1,7 @@
 <?php
 // config/db.php
 
-// MAMP用のデフォルト設定
-// Windows MAMPのMySQL標準ポートは3306、Mac MAMPは8889の場合があります。
+// 接続設定（環境変数が設定されていればそれを優先、なければローカルMAMP設定）
 define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
 define('DB_PORT', getenv('DB_PORT') ?: '3306');
 define('DB_NAME', getenv('DB_NAME') ?: 'wind_orchestra');
@@ -24,14 +23,22 @@ function get_db_connection() {
             PDO::ATTR_EMULATE_PREPARES => false,
         ];
 
+        // クラウドDB（TiDB Cloud等）用のSSL設定
+        if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
+            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+        }
+
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            // テーブルが未作成なら自動初期化
+            ensure_tables_exist($pdo);
         } catch (PDOException $e) {
             // MAMPのポートが8889の場合のフォールバック試行
-            if (DB_PORT === '3306') {
+            if (DB_PORT === '3306' && DB_HOST === '127.0.0.1') {
                 try {
                     $fallback_dsn = sprintf('mysql:host=%s;port=8889;dbname=%s;charset=utf8mb4', DB_HOST, DB_NAME);
                     $pdo = new PDO($fallback_dsn, DB_USER, DB_PASS, $options);
+                    ensure_tables_exist($pdo);
                     return $pdo;
                 } catch (PDOException $e2) {
                     // 両方失敗した場合は元のエラー
@@ -42,4 +49,32 @@ function get_db_connection() {
     }
 
     return $pdo;
+}
+
+/**
+ * 初回アクセス時にテーブルを自動作成する
+ */
+function ensure_tables_exist($pdo) {
+    static $initialized = false;
+    if ($initialized) return;
+    $initialized = true;
+
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
+        if (!$stmt->fetch()) {
+            $schema_file = __DIR__ . '/../db/schema.sql';
+            if (file_exists($schema_file)) {
+                $sql = file_get_contents($schema_file);
+                // セミコロンで分割して1文ずつ実行
+                $queries = array_filter(array_map('trim', explode(';', $sql)));
+                foreach ($queries as $query) {
+                    if (!empty($query)) {
+                        $pdo->exec($query);
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        // エラー時はスキップ
+    }
 }
