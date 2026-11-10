@@ -1,6 +1,7 @@
 FROM php:8.2-apache
 
-# MySQL接続用PDO拡張モジュールをインストール
+# SSL証明書とMySQL接続用PDO拡張モジュールをインストール
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN docker-php-ext-install pdo pdo_mysql
 
 # Apacheのmod_rewriteを有効化

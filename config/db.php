@@ -23,7 +23,20 @@ function get_db_connection() {
             PDO::ATTR_EMULATE_PREPARES => false,
         ];
 
-        // クラウドDB（TiDB Cloud等）用のSSL設定
+        // クラウドDB（TiDB Cloud等）用のSSL暗号化通信設定
+        if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
+            $ca_candidates = [
+                '/etc/ssl/certs/ca-certificates.crt', // Debian / Ubuntu (Render)
+                '/etc/pki/tls/certs/ca-bundle.crt',   // CentOS / RHEL
+                '/etc/ssl/cert.pem',                   // Alpine
+            ];
+            foreach ($ca_candidates as $ca) {
+                if (file_exists($ca)) {
+                    $options[PDO::MYSQL_ATTR_SSL_CA] = $ca;
+                    break;
+                }
+            }
+        }
         if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
             $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
         }
